@@ -64,7 +64,7 @@ Alternatively, the script can automatically download and use GeckoDriver via `we
 
 1. Run the scraper:
    ```bash
-   python main.py
+   python scraper.py
    ```
 
 2. The script will:
@@ -79,10 +79,7 @@ Alternatively, the script can automatically download and use GeckoDriver via `we
 - If a country-specific subdomain does not exist, the script logs an error but continues with the next query.
 - Add error handling for network or timeout issues if required.
 
-## License
-This project is open-source and licensed under the MIT License. See the LICENSE file for details.
 
----
 
 Happy scraping!
 
