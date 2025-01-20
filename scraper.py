@@ -10,6 +10,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from webdriver_manager.firefox import GeckoDriverManager
+from selenium.common.exceptions import ElementClickInterceptedException
+
 from pymongo import MongoClient
 
 # Set up logging
@@ -104,73 +106,107 @@ def visit_liveumap(query):
         )
         logger.info("Found the div with class 'scroller'.")
         
-        last_height = driver.execute_script("return document.body.scrollHeight")
-        
         event_data_list = []  # List to store the scraped event data
         
-        while True:
-            # Scroll to the bottom of the page
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)  # Wait for the page to load new content
+        # Find all divs with class 'event cat' and process them one by one
+        event_cat_divs = driver.find_elements(By.CSS_SELECTOR, "div[class^='event cat']")
+        if event_cat_divs:
+            for idx, event_div in enumerate(event_cat_divs, 1):
+                logger.info(f"Processing Event {idx} div.")
+                try:
+                    # Click the div the first time with handling for overlapping elements
+                    attempt_click(event_div)
+                    time.sleep(2)  # Wait for 2 seconds
+                    
+                    # Click the div again with handling for overlapping elements
+                    attempt_click(event_div)
+                    logger.info(f"Clicked Event {idx} div twice.")
+                    
+                    # Locate and scrape the location from the 'marker-time' div
+                    try:
+                        marker_time_div = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.CLASS_NAME, "marker-time"))
+                        )
+                        location_a = marker_time_div.find_element(By.TAG_NAME, "a")
+                        location = location_a.text if location_a else "Location not found"
+                        logger.info(f"Location scraped for Event {idx}: {location}")
+                    except NoSuchElementException:
+                        logger.error(f"No 'marker-time' div found for Event {idx} location.")
 
-            # Find all divs whose class starts with 'event cat'
-            event_cat_divs = driver.find_elements(By.CSS_SELECTOR, "div[class^='event cat']")
-            logger.info(f"Found {len(event_cat_divs)} divs with class starting with 'event cat'.")
-            
-            # Iterate through the found divs and extract the required data
-            for i, event_div in enumerate(event_cat_divs, 1):
-                logger.info(f"Extracting data from Event {i} div.")
-                
-                # Extract date
-                try:
-                    date = event_div.find_element(By.CSS_SELECTOR, "span.date_add").text
-                except NoSuchElementException:
-                    date = "Date not found"
-                
-                # Extract source
-                try:
-                    source_url = event_div.find_element(By.CSS_SELECTOR, "a.source-link").get_attribute("href")
-                except NoSuchElementException:
-                    source_url = "Source not found"
-                
-                # Extract data (title)
-                try:
-                    data = event_div.find_element(By.CSS_SELECTOR, "div.title").text
-                except NoSuchElementException:
-                    data = "Data not found"
-                
-                # Extract image source if present
-                try:
-                    img_src = event_div.find_element(By.CSS_SELECTOR, "label img").get_attribute("src")
-                except NoSuchElementException:
-                    img_src = "Image not found"
-                
-                event_data = {
-                    "date": date,
-                    "source_url": source_url,
-                    "data": data,
-                    "img_src": img_src
-                }
-                
-                # Append the event data to the list
-                event_data_list.append(event_data)
-            
-            new_height = driver.execute_script("return document.body.scrollHeight")
-            if new_height == last_height:  
-                logger.info("Reached the bottom of the page.")
-                break
-            last_height = new_height 
+                    # Click the specific XPath to continue scraping
+                    try:
+                        time.sleep(3)
+                        xpath_button = driver.find_element(By.XPATH, "//*[@id='top']/div[2]/div[2]/div[2]/div[4]/a")
+                        xpath_button.click()
+                        logger.info(f"Clicked the specific XPath button for Event {idx} to continue.")
+                    except NoSuchElementException:
+                        logger.error(f"No XPath button found to continue for Event {idx}.")
+
+                    # Now, continue scraping for the clicked div (Event {idx})
+                    logger.info(f"Continuing scraping process for Event {idx}.")
+
+                    # Extract date
+                    try:
+                        date = event_div.find_element(By.CSS_SELECTOR, "span.date_add").text
+                    except NoSuchElementException:
+                        date = "Date not found"
+                    
+                    # Extract source
+                    try:
+                        source_url = event_div.find_element(By.CSS_SELECTOR, "a.source-link").get_attribute("href")
+                    except NoSuchElementException:
+                        source_url = "Source not found"
+                    
+                    # Extract data (title)
+                    try:
+                        data = event_div.find_element(By.CSS_SELECTOR, "div.title").text
+                    except NoSuchElementException:
+                        data = "Data not found"
+                    
+                    # Extract image source if present
+                    try:
+                        img_src = event_div.find_element(By.CSS_SELECTOR, "label img").get_attribute("src")
+                    except NoSuchElementException:
+                        img_src = "Image not found"
+                    
+                    event_data = {
+                        "date": date,
+                        "source_url": source_url,
+                        "data": data,
+                        "img_src": img_src,
+                        "location": location  # Add the location to the scraped data
+                    }
+                    
+                    # Append the event data to the list
+                    event_data_list.append(event_data)
+
+                    # Add a 2-second delay between processing each event
+                    time.sleep(2)
+
+                except Exception as e:
+                    logger.error(f"Error during processing Event {idx}: {e}")
 
         # Store the scraped data in MongoDB (collection named after query)
         store_data_in_mongo(event_data_list, query.lower())
 
     except Exception as e:
         logger.error(f"Error while scraping {url}: {e}")
-        # You can handle specific errors for better diagnostics, e.g., connection issues, page errors, etc.
     finally:
         if driver:
             driver.quit()  # Close the driver for each query
             logger.info("Driver closed.")
+
+def attempt_click(element, retries=3, delay=1):
+    """Try to click an element with retries if it's obscured by another element."""
+    for attempt in range(retries):
+        try:
+            element.click()
+            return
+        except ElementClickInterceptedException:
+            logger.warning(f"Attempt {attempt + 1} failed. Element is obscured. Retrying...")
+            time.sleep(delay)  # Wait before retrying
+    logger.error("Failed to click element after several attempts.")
+
 
 def main():
     try:
