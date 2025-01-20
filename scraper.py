@@ -135,12 +135,18 @@ def visit_liveumap(query):
 
                     # Click the specific XPath to continue scraping
                     try:
-                        time.sleep(3)
                         xpath_button = driver.find_element(By.XPATH, "//*[@id='top']/div[2]/div[2]/div[2]/div[4]/a")
                         xpath_button.click()
                         logger.info(f"Clicked the specific XPath button for Event {idx} to continue.")
                     except NoSuchElementException:
                         logger.error(f"No XPath button found to continue for Event {idx}.")
+                        # If XPath fails, try clicking the alternative 'Jump to map' link
+                        try:
+                            jump_to_map_link = driver.find_element(By.CSS_SELECTOR, "div.map_link_par a.map-link")
+                            jump_to_map_link.click()
+                            logger.info(f"Clicked 'Jump to map' link for Event {idx}.")
+                        except NoSuchElementException:
+                            logger.error(f"No 'Jump to map' link found for Event {idx}.")
 
                     # Now, continue scraping for the clicked div (Event {idx})
                     logger.info(f"Continuing scraping process for Event {idx}.")
