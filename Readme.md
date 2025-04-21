@@ -2,15 +2,14 @@
 
 This project is a web scraper for extracting data from LiveUAMap (liveuamap.com) based on country-specific subdomains. The scraper retrieves event data, including date, source, title, and images, and stores it in a MongoDB database for later analysis or reporting.
 
-## Features
-- Uses Selenium to interact with LiveUAMap pages dynamically.
-- Extracts event details such as:
-  - Date of the event
-  - Source URL
-  - Event title
-  - Associated image (if available)
-- Stores the extracted data in a MongoDB database.
-- Automatically handles dynamic scrolling to load all event data on the page.
+## 🚀 Features
+
+- **Dynamic URL generation** from a `countries.txt` list  
+- **Robust Selenium setup** with GeckoDriver auto‑installation or custom path  
+- **Resilient clicking logic** with retry on intercepted clicks  
+- **Structured data extraction**: date, source URL, title, image, location  
+- **MongoDB storage** with upsert logic to avoid duplicates  
+- **Detailed logging** for easy troubleshooting  
 
 ## Prerequisites
 1. **Python 3.8+** installed on your system.
